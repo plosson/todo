@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/styles.css">
+  <title>Sessions — Todo</title>
+</head>
+<body>
+  <div id="app">
+    <header class="top">
+      <h1>Where you are signed in</h1>
+      <a href="/" class="link">← Back</a>
+    </header>
+    <ul id="session-list" class="todo-list"></ul>
+    <p id="empty" class="muted" hidden>No active sessions.</p>
+  </div>
+  <script>
+    async function load() {
+      const me = await fetch('/api/auth/me');
+      if (!me.ok) { location.href = '/login?redirectTo=/sessions'; return; }
+      const res = await fetch('/api/auth/sessions');
+      const data = await res.json();
+      const list = document.getElementById('session-list');
+      const empty = document.getElementById('empty');
+      list.innerHTML = '';
+      if (!data.sessions?.length) { empty.hidden = false; return; }
+      for (const s of data.sessions) {
+        const li = document.createElement('li');
+        li.className = 'todo-item';
+        li.innerHTML = `<div class="todo-body">
+          <strong>${s.label || s.kind}</strong>
+          <span class="muted small">${s.kind} · last used ${new Date(s.lastUsedAt).toLocaleString()}</span>
+        </div>
+        <button type="button" class="btn secondary revoke" data-id="${s.id}">Revoke</button>`;
+        list.appendChild(li);
+      }
+      list.querySelectorAll('.revoke').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          await fetch('/api/auth/sessions/' + btn.dataset.id, { method: 'DELETE' });
+          load();
+        });
+      });
+    }
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+services:
+  todo:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      BASE_URL: ${BASE_URL:-http://localhost:8787}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      DEV_AUTH: ${DEV_AUTH:-0}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+    volumes:
+      - todo-data:/data
+    restart: unless-stopped
+
+volumes:
+  todo-data:

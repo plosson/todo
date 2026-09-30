@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Todo">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <title>Todo</title>
+</head>
+<body>
+  <div id="app">
+    <header class="top">
+      <h1>Todo</h1>
+      <div class="top-actions">
+        <a href="/sessions" class="link" id="sessions-link" hidden>Sessions</a>
+        <button type="button" class="link" id="logout-btn" hidden>Sign out</button>
+      </div>
+    </header>
+
+    <section id="auth-gate" class="card" hidden>
+      <p class="muted">Sign in to see your list.</p>
+      <div class="stack" id="auth-buttons"></div>
+    </section>
+
+    <section id="main" hidden>
+      <form id="add-form" class="add-form">
+        <input id="title-input" type="text" placeholder="Add a todo…" autocomplete="off" required maxlength="500">
+        <input id="tags-input" type="text" placeholder="tags (comma)" autocomplete="off">
+        <button type="submit" class="btn primary">Add</button>
+      </form>
+
+      <div class="filters">
+        <button type="button" class="chip active" data-status="open">Open</button>
+        <button type="button" class="chip" data-status="done">Done</button>
+        <button type="button" class="chip" data-status="all">All</button>
+        <select id="tag-filter" aria-label="Filter by tag">
+          <option value="">All tags</option>
+        </select>
+      </div>
+
+      <ul id="todo-list" class="todo-list"></ul>
+      <p id="empty" class="muted empty" hidden>Nothing here yet.</p>
+    </section>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

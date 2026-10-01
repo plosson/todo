@@ -37,8 +37,31 @@ function normaliseEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+export interface SignInPolicy {
+  allowedEmails: string[];
+  /** Dev auth already lets anyone in as any email, so the allowlist is moot. */
+  allowAnyEmail: boolean;
+}
+
 export class AuthService {
-  constructor(private readonly db: Database) {}
+  private readonly allowedEmails: Set<string>;
+
+  constructor(
+    private readonly db: Database,
+    private readonly policy: SignInPolicy,
+  ) {
+    this.allowedEmails = new Set(policy.allowedEmails.map(normaliseEmail));
+  }
+
+  isEmailAllowed(email: string): boolean {
+    return this.policy.allowAnyEmail || this.allowedEmails.has(normaliseEmail(email));
+  }
+
+  assertEmailAllowed(email: string): void {
+    if (!this.isEmailAllowed(email)) {
+      throw new ApiError('forbidden', 'This account is not allowed on this server.');
+    }
+  }
 
   findUserByEmail(email: string): UserRow | undefined {
     return this.db

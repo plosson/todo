@@ -16,7 +16,10 @@ export interface AppServices {
 }
 
 export function createServices(config: Config, db: Database): AppServices {
-  const auth = new AuthService(db);
+  const auth = new AuthService(db, {
+    allowedEmails: config.allowedEmails,
+    allowAnyEmail: config.devAuth,
+  });
   return {
     config,
     db,

@@ -12,6 +12,9 @@ console.log(`todo listening on ${config.baseUrl} (port ${config.port})`);
 console.log(`  google: ${config.google ? 'configured' : 'off'}`);
 console.log(`  devAuth: ${config.devAuth ? 'on' : 'off'}`);
 console.log(`  db: ${config.databasePath}`);
+if (config.google && !config.devAuth && config.allowedEmails.length === 0) {
+  console.warn('  WARNING: ALLOWED_EMAILS is empty, so nobody can sign in with Google.');
+}
 
 export default {
   port: config.port,

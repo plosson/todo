@@ -21,7 +21,11 @@ export function registerTodoRoutes(app: Hono<AppEnv>): void {
     const statusRaw = c.req.query('status') ?? 'open';
     const status =
       statusRaw === 'done' || statusRaw === 'all' || statusRaw === 'open' ? statusRaw : 'open';
-    const limit = c.req.query('limit') ? Number(c.req.query('limit')) : undefined;
+    const limitRaw = c.req.query('limit');
+    if (limitRaw !== undefined && !/^\d{1,6}$/.test(limitRaw)) {
+      throw new ApiError('validation_failed', 'limit must be a whole number.');
+    }
+    const limit = limitRaw !== undefined ? Number(limitRaw) : undefined;
     return c.json({ todos: todos.list(user.id, { tag, status, limit }) });
   });
 

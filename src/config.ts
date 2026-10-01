@@ -15,6 +15,8 @@ export interface Config {
   google: GoogleConfig | null;
   /** When true, /api/auth/dev and the PWA "Continue as dev" button work. */
   devAuth: boolean;
+  /** Lowercased emails allowed to sign in. Empty means nobody (except via dev auth). */
+  allowedEmails: string[];
   dataDir: string;
 }
 
@@ -48,14 +50,14 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
   const google =
     clientId && clientSecret ? { clientId, clientSecret } : null;
 
-  const nodeEnv = env('NODE_ENV', 'development');
+  // Dev auth signs in as any email, so it is opt-in only.
   const devAuthFlag = env('DEV_AUTH');
-  const devAuth =
-    overrides.devAuth ??
-    (devAuthFlag === '1' ||
-      devAuthFlag === 'true' ||
-      nodeEnv === 'test' ||
-      (!google && nodeEnv !== 'production'));
+  const devAuth = overrides.devAuth ?? (devAuthFlag === '1' || devAuthFlag === 'true');
+
+  const allowedEmails = (env('ALLOWED_EMAILS') ?? '')
+    .split(/[\s,]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.length > 0);
 
   return {
     port,
@@ -64,6 +66,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     sessionSecret: loadOrCreateSecret(dataDir),
     google,
     devAuth,
+    allowedEmails,
     dataDir,
     ...overrides,
   };

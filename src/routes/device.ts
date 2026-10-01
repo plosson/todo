@@ -93,7 +93,7 @@ export function registerDeviceRoutes(app: Hono<AppEnv>): void {
   });
 
   app.post('/api/auth/device/approve', requireUser, async (c) => {
-    const { devices } = c.get('services');
+    const { devices, auth } = c.get('services');
     const body = await readOptionalJson(c.req.raw);
     if (typeof body.userCode !== 'string') {
       throw new ApiError('validation_failed', 'userCode is required.');
@@ -102,7 +102,9 @@ export function registerDeviceRoutes(app: Hono<AppEnv>): void {
       devices.deny(body.userCode);
       return c.json({ approved: false });
     }
-    devices.approve(body.userCode, currentUser(c).id);
+    const user = currentUser(c);
+    auth.assertEmailAllowed(user.email);
+    devices.approve(body.userCode, user.id);
     return c.json({ approved: true });
   });
 }

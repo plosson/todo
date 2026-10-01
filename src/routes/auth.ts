@@ -1,4 +1,4 @@
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import { setCookie, deleteCookie, getCookie } from 'hono/cookie';
 import type { AppEnv } from '../context';
 import { requireUser, currentUser, SESSION_COOKIE } from '../middleware/auth';
@@ -23,12 +23,25 @@ async function readJson(req: Request): Promise<Record<string, unknown>> {
   }
 }
 
+const REDIRECT_PROBE_ORIGIN = 'http://same-origin.invalid';
+
+/**
+ * Only same-origin paths. Parsed the way browsers parse them, so tricks like
+ * `/\evil.com` or `/\t/evil.com` (which browsers treat as `//evil.com`) are refused.
+ */
 function safeRedirect(raw: unknown, fallback = '/'): string {
-  if (typeof raw !== 'string' || !raw.startsWith('/') || raw.startsWith('//')) return fallback;
-  return raw;
+  if (typeof raw !== 'string' || !raw.startsWith('/')) return fallback;
+  let url: URL;
+  try {
+    url = new URL(raw, REDIRECT_PROBE_ORIGIN);
+  } catch {
+    return fallback;
+  }
+  if (url.origin !== REDIRECT_PROBE_ORIGIN) return fallback;
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
-function setSessionCookie(c: Parameters<Parameters<Hono<AppEnv>['post']>[1]>[0], token: string) {
+function setSessionCookie(c: Context<AppEnv>, token: string) {
   setCookie(c, SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'Lax',
@@ -155,6 +168,10 @@ export function registerAuthRoutes(app: Hono<AppEnv>): void {
     if (!identity.emailVerified) {
       throw new ApiError('unauthenticated', 'Google email is not verified.');
     }
+    if (!auth.isEmailAllowed(identity.email)) {
+      const message = `${identity.email} is not allowed on this server.`;
+      return c.redirect(`/login?error=${encodeURIComponent(message)}`, 302);
+    }
 
     const user = auth.findOrCreateUser(identity.email, identity.displayName);
     const session = auth.createSession(user.id, 'google');
@@ -174,7 +191,7 @@ export function registerAuthRoutes(app: Hono<AppEnv>): void {
       ? `<a class="btn primary" href="/api/auth/google/start?redirectTo=${encodeURIComponent(redirectTo)}">Continue with Google</a>`
       : '';
     const devBtn = config.devAuth
-      ? `<button type="button" class="btn secondary" id="dev-login">Continue as dev</button>`
+      ? `<button type="button" class="btn secondary" id="dev-login" data-redirect-to="${escapeHtml(redirectTo)}">Continue as dev</button>`
       : '';
 
     return c.html(`<!doctype html>
@@ -192,13 +209,14 @@ export function registerAuthRoutes(app: Hono<AppEnv>): void {
   ${!config.google && !config.devAuth ? '<p class="muted">No sign-in methods configured. Set GOOGLE_CLIENT_ID/SECRET or DEV_AUTH=1.</p>' : ''}
 </main>
 <script>
-document.getElementById('dev-login')?.addEventListener('click', async () => {
+const devLogin = document.getElementById('dev-login');
+devLogin?.addEventListener('click', async () => {
   const res = await fetch('/api/auth/dev', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: 'dev@localhost', displayName: 'Dev User' }),
   });
-  if (res.ok) location.href = ${JSON.stringify(redirectTo)};
+  if (res.ok) location.href = devLogin.dataset.redirectTo;
   else alert('Dev login failed');
 });
 </script>

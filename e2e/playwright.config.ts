@@ -16,7 +16,8 @@ export default defineConfig({
     headless: true,
   },
   webServer: {
-    command: `DEV_AUTH=1 PORT=${PORT} BASE_URL=${BASE} DATABASE_PATH=${ROOT}/.data/e2e.db bun run ${ROOT}/src/index.ts`,
+    // Fresh database every run, so runs do not see each other's todos.
+    command: `rm -f ${ROOT}/.data/e2e.db ${ROOT}/.data/e2e.db-wal ${ROOT}/.data/e2e.db-shm && DEV_AUTH=1 PORT=${PORT} BASE_URL=${BASE} DATABASE_PATH=${ROOT}/.data/e2e.db bun run ${ROOT}/src/index.ts`,
     url: `${BASE}/api/health`,
     cwd: ROOT,
     reuseExistingServer: false,

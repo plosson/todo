@@ -38,3 +38,18 @@ test('add, check, filter by tag', async ({ page }) => {
   await page.locator('.chip[data-status="done"]').click();
   await expect(page.getByText('Buy milk')).toBeVisible();
 });
+
+test('login page dev sign-in follows a safe redirectTo', async ({ page, context }) => {
+  await context.clearCookies();
+  await page.goto('/login?redirectTo=' + encodeURIComponent('/sessions'));
+  await page.getByRole('button', { name: 'Continue as dev' }).click();
+  await expect(page).toHaveURL(/\/sessions$/);
+});
+
+test('login page dev sign-in ignores an offsite redirectTo', async ({ page, context }) => {
+  await context.clearCookies();
+  await page.goto('/login?redirectTo=' + encodeURIComponent('/\\evil.example'));
+  await page.getByRole('button', { name: 'Continue as dev' }).click();
+  await page.waitForLoadState();
+  expect(new URL(page.url()).hostname).toBe('127.0.0.1');
+});

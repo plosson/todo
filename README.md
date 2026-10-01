@@ -13,7 +13,7 @@ DEV_AUTH=1 bun run dev
 # → http://localhost:8787
 ```
 
-With `DEV_AUTH=1` (default when Google is unset and not in production), open the PWA and click **Continue as dev**.
+With `DEV_AUTH=1` (off unless set explicitly; never enable it in production), open the PWA and click **Continue as dev**.
 
 ## Environment
 
@@ -21,6 +21,7 @@ With `DEV_AUTH=1` (default when Google is unset and not in production), open the
 |---|---|---|
 | `GOOGLE_CLIENT_ID` | for production human sign-in | Google Cloud OAuth web client |
 | `GOOGLE_CLIENT_SECRET` | with client id | |
+| `ALLOWED_EMAILS` | yes with Google | Comma-separated emails allowed to sign in with Google and approve devices. Empty means nobody. Ignored when `DEV_AUTH=1` |
 | `BASE_URL` | yes in prod | Public origin, no trailing slash. Redirect URI registered in Google: `{BASE_URL}/api/auth/google/callback` |
 | `DEV_AUTH` | for local/e2e | `1` enables `/api/auth/dev` and the PWA “Continue as dev” button |
 | `PORT` | no | Default `8787` |

@@ -82,3 +82,30 @@ describe('todos API', () => {
     expect(other.status).toBe(404);
   });
 });
+
+describe('list limit', () => {
+  const bad = ['abc', '', '-1', '1.5', '1e3', ' 5', '5 ', '0x10', 'NaN', 'Infinity', '9999999', '١٢'];
+  for (const raw of bad) {
+    test(`rejects limit=${JSON.stringify(raw)} with 400, not 500`, async () => {
+      const { app } = testApp();
+      const { token } = await signInDev(app);
+      const res = await json(app, 'GET', `/api/todos?limit=${encodeURIComponent(raw)}`, { token });
+      expect(res.status).toBe(400);
+      expect((res.data as { error: string }).error).toBe('validation_failed');
+    });
+  }
+
+  test('limit is clamped to the 1..500 range', async () => {
+    const { app } = testApp();
+    const { token } = await signInDev(app);
+    for (let i = 0; i < 3; i += 1) {
+      await json(app, 'POST', '/api/todos', { token, body: { title: `t${i}` } });
+    }
+    const zero = await json(app, 'GET', '/api/todos?limit=0', { token });
+    expect((zero.data as { todos: unknown[] }).todos).toHaveLength(1);
+    const two = await json(app, 'GET', '/api/todos?limit=2', { token });
+    expect((two.data as { todos: unknown[] }).todos).toHaveLength(2);
+    const huge = await json(app, 'GET', '/api/todos?limit=999999', { token });
+    expect((huge.data as { todos: unknown[] }).todos).toHaveLength(3);
+  });
+});

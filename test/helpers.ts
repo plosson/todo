@@ -5,7 +5,9 @@ import { createApp } from '../src/app';
 import type { Hono } from 'hono';
 import type { AppEnv } from '../src/context';
 
-export function testApp(overrides: { baseUrl?: string; devAuth?: boolean } = {}) {
+export function testApp(
+  overrides: { baseUrl?: string; devAuth?: boolean; allowedEmails?: string[] } = {},
+) {
   const db = openMemoryDatabase();
   const config = loadConfig({
     baseUrl: overrides.baseUrl ?? 'http://localhost:8787',
@@ -13,6 +15,7 @@ export function testApp(overrides: { baseUrl?: string; devAuth?: boolean } = {})
     sessionSecret: 'test-secret-not-for-production',
     google: null,
     devAuth: overrides.devAuth ?? true,
+    allowedEmails: overrides.allowedEmails ?? [],
     port: 8787,
     dataDir: '/tmp/todo-test',
   });

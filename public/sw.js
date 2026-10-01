@@ -1,4 +1,4 @@
-const CACHE = 'todo-shell-v1';
+const CACHE = 'todo-shell-v2';
 const SHELL = ['/', '/styles.css', '/app.js', '/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', (event) => {

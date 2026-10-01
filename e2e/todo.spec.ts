@@ -6,6 +6,9 @@ test('add, check, filter by tag', async ({ page }) => {
   // Dev sign-in
   await expect(page.getByRole('button', { name: 'Continue as dev' })).toBeVisible();
   await page.getByRole('button', { name: 'Continue as dev' }).click();
+  // The add sheet stays hidden until the + button is pressed.
+  await expect(page.getByPlaceholder('Add a todo…')).toBeHidden();
+  await page.getByRole('button', { name: 'New todo' }).click();
   await expect(page.getByPlaceholder('Add a todo…')).toBeVisible();
 
   // Add with tag
@@ -13,7 +16,7 @@ test('add, check, filter by tag', async ({ page }) => {
   await page.getByPlaceholder('tags (comma)').fill('agentio');
   await page.getByRole('button', { name: 'Add' }).click();
   await expect(page.getByText('Ship todo MVP')).toBeVisible();
-  await expect(page.locator('.tag', { hasText: 'agentio' })).toBeVisible();
+  await expect(page.locator('.todo-item .tag', { hasText: 'agentio' })).toBeVisible();
 
   // Add another with different tag
   await page.getByPlaceholder('Add a todo…').fill('Buy milk');
@@ -21,12 +24,17 @@ test('add, check, filter by tag', async ({ page }) => {
   await page.getByRole('button', { name: 'Add' }).click();
   await expect(page.getByText('Buy milk')).toBeVisible();
 
+  // Escape closes the sheet
+  await page.keyboard.press('Escape');
+  await expect(page.getByPlaceholder('Add a todo…')).toBeHidden();
+
   // Filter by tag
-  await page.locator('#tag-filter').selectOption('agentio');
+  await page.locator('.tag-chip', { hasText: 'agentio' }).click();
+  await expect(page.locator('#view-title')).toHaveText('#agentio');
   await expect(page.getByText('Ship todo MVP')).toBeVisible();
   await expect(page.getByText('Buy milk')).toHaveCount(0);
 
-  await page.locator('#tag-filter').selectOption('');
+  await page.locator('.tag-chip[data-tag=""]').click();
   await expect(page.getByText('Buy milk')).toBeVisible();
 
   // Check off

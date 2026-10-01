@@ -32,3 +32,9 @@ export function currentUser(c: { get: (k: 'principal') => AppEnv['Variables']['p
   if (!principal) throw new ApiError('unauthenticated', 'Sign in required.');
   return principal.user;
 }
+
+/** Id of the session or API token behind this request, for recording who did what. */
+export function currentVia(c: { get: (k: 'principal') => AppEnv['Variables']['principal'] }) {
+  const principal = c.get('principal');
+  return principal?.sessionId ?? principal?.tokenId ?? null;
+}

@@ -3,6 +3,13 @@ import { newId } from './ids';
 import { nowIso } from './time';
 import { ApiError } from './errors';
 
+/** The session or API token that performed an action on a todo. */
+export interface TodoVia {
+  id: string;
+  kind: 'session' | 'api_token';
+  label: string | null;
+}
+
 export interface Todo {
   id: string;
   title: string;
@@ -11,8 +18,40 @@ export interface Todo {
   doneAt: string | null;
   tags: string[];
   createdAt: string;
+  createdVia: TodoVia | null;
   updatedAt: string;
+  doneVia: TodoVia | null;
 }
+
+interface TodoRow {
+  id: string;
+  title: string;
+  notes: string | null;
+  done_at: string | null;
+  created_at: string;
+  updated_at: string;
+  created_via: string | null;
+  created_via_kind: TodoVia['kind'] | null;
+  created_via_label: string | null;
+  done_via: string | null;
+  done_via_kind: TodoVia['kind'] | null;
+  done_via_label: string | null;
+}
+
+/** Todo columns plus the kind and label of the session/token in created_via and done_via. */
+const SELECT_TODO = `
+  SELECT t.*,
+    CASE WHEN cs.id IS NOT NULL THEN 'session' WHEN ct.id IS NOT NULL THEN 'api_token' END
+      AS created_via_kind,
+    COALESCE(cs.label, ct.label) AS created_via_label,
+    CASE WHEN ds.id IS NOT NULL THEN 'session' WHEN dt.id IS NOT NULL THEN 'api_token' END
+      AS done_via_kind,
+    COALESCE(ds.label, dt.label) AS done_via_label
+  FROM todos t
+  LEFT JOIN auth_sessions cs ON cs.id = t.created_via
+  LEFT JOIN api_tokens ct ON ct.id = t.created_via
+  LEFT JOIN auth_sessions ds ON ds.id = t.done_via
+  LEFT JOIN api_tokens dt ON dt.id = t.done_via`;
 
 export interface Tag {
   id: string;
@@ -34,7 +73,7 @@ export class TodoService {
     const status = opts.status ?? 'open';
     const limit = Math.min(Math.max(opts.limit ?? 200, 1), 500);
     const params: (string | number)[] = [];
-    let sql = `SELECT t.* FROM todos t`;
+    let sql = SELECT_TODO;
     if (opts.tag) {
       sql += ` JOIN todo_tags tt ON tt.todo_id = t.id
                JOIN tags g ON g.id = tt.tag_id AND g.owner_id = t.owner_id AND g.name = ?`;
@@ -47,38 +86,24 @@ export class TodoService {
     sql += ` ORDER BY t.sort_key ASC, t.created_at DESC LIMIT ?`;
     params.push(limit);
 
-    const rows = this.db.query(sql).all(...params) as Array<{
-      id: string;
-      title: string;
-      notes: string | null;
-      done_at: string | null;
-      created_at: string;
-      updated_at: string;
-    }>;
+    const rows = this.db.query(sql).all(...params) as TodoRow[];
 
     return rows.map((r) => this.toTodo(r));
   }
 
   get(ownerId: string, id: string): Todo {
     const row = this.db
-      .query('SELECT * FROM todos WHERE id = ? AND owner_id = ?')
-      .get(id, ownerId) as
-      | {
-          id: string;
-          title: string;
-          notes: string | null;
-          done_at: string | null;
-          created_at: string;
-          updated_at: string;
-        }
-      | undefined;
+      .query(`${SELECT_TODO} WHERE t.id = ? AND t.owner_id = ?`)
+      .get(id, ownerId) as TodoRow | undefined;
     if (!row) throw new ApiError('not_found', 'Todo not found.');
     return this.toTodo(row);
   }
 
+  /** `via` is the id of the session or API token doing the action, if any. */
   create(
     ownerId: string,
     input: { title: string; notes?: string | null; tags?: string[] },
+    via: string | null,
   ): Todo {
     const title = input.title?.trim();
     if (!title) throw new ApiError('validation_failed', 'title is required.');
@@ -91,10 +116,11 @@ export class TodoService {
       .get(ownerId) as { m: number };
     this.db
       .query(
-        `INSERT INTO todos (id, owner_id, title, notes, done_at, sort_key, created_at, updated_at)
-         VALUES (?, ?, ?, ?, NULL, ?, ?, ?)`,
+        `INSERT INTO todos
+         (id, owner_id, title, notes, done_at, sort_key, created_at, updated_at, created_via)
+         VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
       )
-      .run(id, ownerId, title, input.notes?.trim() || null, maxSort.m + 1, now, now);
+      .run(id, ownerId, title, input.notes?.trim() || null, maxSort.m + 1, now, now, via);
 
     if (input.tags?.length) this.setTags(ownerId, id, input.tags);
     return this.get(ownerId, id);
@@ -104,6 +130,7 @@ export class TodoService {
     ownerId: string,
     id: string,
     patch: { title?: string; notes?: string | null; tags?: string[]; done?: boolean },
+    via: string | null,
   ): Todo {
     const existing = this.get(ownerId, id);
     const title =
@@ -112,25 +139,34 @@ export class TodoService {
     const notes =
       patch.notes !== undefined ? (patch.notes?.trim() || null) : existing.notes;
     let doneAt = existing.doneAt;
-    if (patch.done === true) doneAt = doneAt ?? nowIso();
-    if (patch.done === false) doneAt = null;
+    let doneVia = existing.doneVia?.id ?? null;
+    // Checking an already-done todo keeps who checked it first.
+    if (patch.done === true && doneAt === null) {
+      doneAt = nowIso();
+      doneVia = via;
+    }
+    if (patch.done === false) {
+      doneAt = null;
+      doneVia = null;
+    }
 
     this.db
       .query(
-        `UPDATE todos SET title = ?, notes = ?, done_at = ?, updated_at = ? WHERE id = ? AND owner_id = ?`,
+        `UPDATE todos SET title = ?, notes = ?, done_at = ?, done_via = ?, updated_at = ?
+         WHERE id = ? AND owner_id = ?`,
       )
-      .run(title, notes, doneAt, nowIso(), id, ownerId);
+      .run(title, notes, doneAt, doneVia, nowIso(), id, ownerId);
 
     if (patch.tags !== undefined) this.setTags(ownerId, id, patch.tags);
     return this.get(ownerId, id);
   }
 
-  check(ownerId: string, id: string): Todo {
-    return this.update(ownerId, id, { done: true });
+  check(ownerId: string, id: string, via: string | null): Todo {
+    return this.update(ownerId, id, { done: true }, via);
   }
 
-  uncheck(ownerId: string, id: string): Todo {
-    return this.update(ownerId, id, { done: false });
+  uncheck(ownerId: string, id: string, via: string | null): Todo {
+    return this.update(ownerId, id, { done: false }, via);
   }
 
   remove(ownerId: string, id: string): void {
@@ -184,14 +220,7 @@ export class TodoService {
     }
   }
 
-  private toTodo(row: {
-    id: string;
-    title: string;
-    notes: string | null;
-    done_at: string | null;
-    created_at: string;
-    updated_at: string;
-  }): Todo {
+  private toTodo(row: TodoRow): Todo {
     const tags = (
       this.db
         .query(
@@ -211,7 +240,20 @@ export class TodoService {
       doneAt: row.done_at,
       tags,
       createdAt: row.created_at,
+      createdVia: toVia(row.created_via, row.created_via_kind, row.created_via_label),
       updatedAt: row.updated_at,
+      doneVia: toVia(row.done_via, row.done_via_kind, row.done_via_label),
     };
   }
+}
+
+function toVia(
+  id: string | null,
+  kind: TodoVia['kind'] | null,
+  label: string | null,
+): TodoVia | null {
+  // Sessions and tokens are only deleted together with their user (and todos),
+  // so an id with no matching row should not happen; report it as unknown.
+  if (id === null || kind === null) return null;
+  return { id, kind, label };
 }

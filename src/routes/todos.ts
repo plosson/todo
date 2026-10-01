@@ -1,6 +1,6 @@
 import type { Hono } from 'hono';
 import type { AppEnv } from '../context';
-import { requireUser, currentUser } from '../middleware/auth';
+import { requireUser, currentUser, currentVia } from '../middleware/auth';
 import { ApiError } from '../errors';
 
 async function readJson(req: Request): Promise<Record<string, unknown>> {
@@ -40,7 +40,7 @@ export function registerTodoRoutes(app: Hono<AppEnv>): void {
       ? body.tags.filter((t): t is string => typeof t === 'string')
       : undefined;
     const notes = typeof body.notes === 'string' ? body.notes : undefined;
-    const created = todos.create(user.id, { title: body.title, tags, notes });
+    const created = todos.create(user.id, { title: body.title, tags, notes }, currentVia(c));
     return c.json(created, 201);
   });
 
@@ -66,19 +66,19 @@ export function registerTodoRoutes(app: Hono<AppEnv>): void {
       patch.tags = body.tags.filter((t): t is string => typeof t === 'string');
     }
     if (typeof body.done === 'boolean') patch.done = body.done;
-    return c.json(todos.update(user.id, c.req.param('id'), patch));
+    return c.json(todos.update(user.id, c.req.param('id'), patch, currentVia(c)));
   });
 
   app.post('/api/todos/:id/check', requireUser, (c) => {
     const { todos } = c.get('services');
     const user = currentUser(c);
-    return c.json(todos.check(user.id, c.req.param('id')));
+    return c.json(todos.check(user.id, c.req.param('id'), currentVia(c)));
   });
 
   app.post('/api/todos/:id/uncheck', requireUser, (c) => {
     const { todos } = c.get('services');
     const user = currentUser(c);
-    return c.json(todos.uncheck(user.id, c.req.param('id')));
+    return c.json(todos.uncheck(user.id, c.req.param('id'), currentVia(c)));
   });
 
   app.delete('/api/todos/:id', requireUser, (c) => {

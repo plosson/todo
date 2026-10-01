@@ -58,3 +58,13 @@ export async function signInDev(app: Hono<AppEnv>, email = 'pierre@example.com')
   const setCookie = res.headers.get('set-cookie') ?? '';
   return { token, cookie: setCookie.split(';')[0]!, email };
 }
+
+/** Run the device flow end to end and return the issued API token, as AgentIO would. */
+export async function signInDevice(app: Hono<AppEnv>, cookie: string, label: string) {
+  const start = await json(app, 'POST', '/api/auth/device', { body: { label } });
+  const { deviceCode, userCode } = start.data as { deviceCode: string; userCode: string };
+  await json(app, 'POST', '/api/auth/device/approve', { cookie, body: { userCode, approve: true } });
+  const res = await json(app, 'POST', '/api/auth/device/token', { body: { deviceCode } });
+  if (res.status !== 200) throw new Error(`device sign-in failed: ${res.status}`);
+  return (res.data as { token: string }).token;
+}

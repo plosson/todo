@@ -23,55 +23,29 @@ export function createApp(services: AppServices): Hono<AppEnv> {
   registerDeviceRoutes(app);
   registerTodoRoutes(app);
 
-  // PWA static assets from /public
+  // PWA static assets from /public. Unversioned URLs, so caches (browser and
+  // Cloudflare) must revalidate every time or a deploy shows a stale mix.
   const publicDir = join(import.meta.dir, '..', 'public');
-
-  app.get('/manifest.webmanifest', async (c) => {
-    const file = Bun.file(join(publicDir, 'manifest.webmanifest'));
-    return new Response(file, {
-      headers: { 'Content-Type': 'application/manifest+json' },
-    });
-  });
-
-  app.get('/sw.js', async (c) => {
-    const file = Bun.file(join(publicDir, 'sw.js'));
-    return new Response(file, {
-      headers: {
-        'Content-Type': 'application/javascript',
-        'Service-Worker-Allowed': '/',
-      },
-    });
-  });
-
-  app.get('/styles.css', async (c) => {
-    return new Response(Bun.file(join(publicDir, 'styles.css')), {
-      headers: { 'Content-Type': 'text/css' },
-    });
-  });
-
-  app.get('/app.js', async (c) => {
-    return new Response(Bun.file(join(publicDir, 'app.js')), {
-      headers: { 'Content-Type': 'application/javascript' },
-    });
-  });
-
-  app.get('/icon.svg', async (c) => {
-    return new Response(Bun.file(join(publicDir, 'icon.svg')), {
-      headers: { 'Content-Type': 'image/svg+xml' },
-    });
-  });
-
-  app.get('/', async (c) => {
-    return new Response(Bun.file(join(publicDir, 'index.html')), {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    });
-  });
-
-  app.get('/sessions', async (c) => {
-    return new Response(Bun.file(join(publicDir, 'sessions.html')), {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    });
-  });
+  const PUBLIC_FILES: Array<[route: string, file: string, headers: Record<string, string>]> = [
+    ['/', 'index.html', { 'Content-Type': 'text/html; charset=utf-8' }],
+    ['/sessions', 'sessions.html', { 'Content-Type': 'text/html; charset=utf-8' }],
+    ['/app.js', 'app.js', { 'Content-Type': 'application/javascript' }],
+    ['/styles.css', 'styles.css', { 'Content-Type': 'text/css' }],
+    ['/icon.svg', 'icon.svg', { 'Content-Type': 'image/svg+xml' }],
+    ['/manifest.webmanifest', 'manifest.webmanifest', { 'Content-Type': 'application/manifest+json' }],
+    [
+      '/sw.js',
+      'sw.js',
+      { 'Content-Type': 'application/javascript', 'Service-Worker-Allowed': '/' },
+    ],
+  ];
+  for (const [route, file, headers] of PUBLIC_FILES) {
+    app.get(route, () =>
+      new Response(Bun.file(join(publicDir, file)), {
+        headers: { ...headers, 'Cache-Control': 'no-cache' },
+      }),
+    );
+  }
 
   app.onError((err, c) => {
     if (err instanceof ApiError) {
